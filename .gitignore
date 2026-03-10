@@ -1,0 +1,37 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.env
+
+# Claude Code
+.claude/
+
+# Shared persona system (별도 git 리포지토리)
+.claude-ai/
+
+# Node (향후 TalkToFigma 플러그인 빌드 시)
+node_modules/
+dist/
+build/
+
+# Figma exports
+*.fig
+exports/
+
+# Logs
+*.log
+
+# Secrets
+*.pem
+*.key
+credentials.json

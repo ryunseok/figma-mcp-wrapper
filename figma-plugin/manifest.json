@@ -1,0 +1,13 @@
+{
+  "name": "Figma MCP Wrapper",
+  "id": "1613154643735527912",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "ui.html",
+  "documentAccess": "dynamic-page",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["*"],
+    "reasoning": "WebSocket connection to local MCP relay server"
+  }
+}
