@@ -1,0 +1,14 @@
+{
+  "name": "figma-mcp-wrapper-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/code.ts --bundle --outfile=dist/code.js --target=es2015",
+    "watch": "esbuild src/code.ts --bundle --outfile=dist/code.js --target=es2015 --watch"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.107.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "TalkToFigma": {
+      "url": "http://localhost:3056/mcp",
+      "type": "sse"
+    }
+  }
+}
