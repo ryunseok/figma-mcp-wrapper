@@ -68,6 +68,9 @@ figma-mcp/
 │   │   └── figma-to-code-technical-implementation.md  # 기술 구현 상세
 │   ├── plans/                   # 실행 계획
 │   │   ├── implementation-plan.md
+│   │   ├── phase-1-foundation.md
+│   │   ├── phase-2-extended-tools.md
+│   │   ├── phase-3-advanced.md
 │   │   └── phase-4-quality-resilience.md
 │   └── guides/                  # 가이드 문서
 │       ├── figma-mcp-setup-guide.md
@@ -134,4 +137,4 @@ figma-mcp/
 | `figma-plugin-publish-guide.md` | Figma Plugin 조직/Community 게시 가이드 |
 
 ---
-*최종 업데이트: 2026-03-10*
+*최종 업데이트: 2026-03-12*

@@ -349,13 +349,13 @@ generate_component_code(componentId: "btn-123", options: { includeA11y: true })
 
 ### 2. **자동 최적화 제안**
 ```bash
-$ claude optimize-design-system --file-key <FIGMA_FILE_KEY>
+$ claude optimize-design-system --file-key YOUR_FILE_KEY
 
 "235개 거래 화면을 분석했습니다. 
 11개 중복 패턴을 발견했고, 5개 컴포넌트로 통합 가능합니다."
 
 # MCP Server를 통한 일괄 분석
-detect_component_changes(fileKey: "<FIGMA_FILE_KEY>")
+detect_component_changes(fileKey: "YOUR_FILE_KEY")
 analyze_component(analysisType: "patterns")
 batch_generate_codes(componentIds: [...], format: "react")
 ```
