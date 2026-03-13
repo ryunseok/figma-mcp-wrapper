@@ -1,4 +1,5 @@
 // Document & Selection handlers
+import { requireNode, resolveSceneNodes } from "./_utils";
 
 export async function getDocumentInfo() {
   const page = figma.currentPage;
@@ -11,7 +12,6 @@ export async function getDocumentInfo() {
     pages: figma.root.children.map((p) => ({
       id: p.id,
       name: p.name,
-      childCount: p.children.length,
     })),
   };
 }
@@ -40,14 +40,12 @@ export async function readMyDesign() {
 }
 
 export async function getNodeInfo(params: { nodeId: string }) {
-  const node = figma.getNodeById(params.nodeId);
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  const node = await requireNode<BaseNode>(params.nodeId);
   return serializeNode(node, 1);
 }
 
 export async function setFocus(params: { nodeId: string }) {
-  const node = figma.getNodeById(params.nodeId);
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  const node = await requireNode<BaseNode>(params.nodeId);
 
   if ("x" in node) {
     figma.currentPage.selection = [node as SceneNode];
@@ -58,17 +56,13 @@ export async function setFocus(params: { nodeId: string }) {
 }
 
 export async function setSelections(params: { nodeIds: string[] }) {
-  const nodes = params.nodeIds
-    .map((id) => figma.getNodeById(id))
-    .filter((n): n is SceneNode => n !== null && "x" in n);
-
+  const nodes = await resolveSceneNodes(params.nodeIds);
   figma.currentPage.selection = nodes;
   return { success: true, selectedCount: nodes.length };
 }
 
 export async function scanNodesByTypes(params: { nodeId: string; types: string[] }) {
-  const parent = figma.getNodeById(params.nodeId);
-  if (!parent) throw new Error(`Node not found: ${params.nodeId}`);
+  const parent = await requireNode<BaseNode>(params.nodeId);
 
   const results: Array<{ id: string; name: string; type: string }> = [];
 

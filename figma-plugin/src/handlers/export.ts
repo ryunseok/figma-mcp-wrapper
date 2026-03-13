@@ -1,10 +1,10 @@
 // Export & Prototype handlers
+import { requireNode } from "./_utils";
 
 export async function exportNodeAsImage(params: {
   nodeId: string; format?: string; scale?: number;
 }) {
-  const node = figma.getNodeById(params.nodeId) as SceneNode;
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  const node = await requireNode(params.nodeId);
 
   const format = (params.format?.toUpperCase() ?? "PNG") as "PNG" | "JPG" | "SVG" | "PDF";
   const scale = params.scale ?? 2;
@@ -31,7 +31,7 @@ export async function getReactions(params: { nodeIds: string[] }) {
   const results: Array<{ id: string; reactions: unknown[] }> = [];
 
   for (const nodeId of params.nodeIds) {
-    const node = figma.getNodeById(nodeId) as SceneNode;
+    const node = await figma.getNodeByIdAsync(nodeId) as SceneNode;
     if (node && "reactions" in node) {
       results.push({
         id: node.id,
@@ -44,8 +44,8 @@ export async function getReactions(params: { nodeIds: string[] }) {
 }
 
 export async function setDefaultConnector(params: { connectorId: string }) {
-  const node = figma.getNodeById(params.connectorId) as ConnectorNode;
-  if (!node || node.type !== "CONNECTOR") throw new Error("Connector not found");
+  const node = await requireNode<ConnectorNode>(params.connectorId, "Connector");
+  if (node.type !== "CONNECTOR") throw new Error("Connector not found");
   return { id: node.id, name: node.name };
 }
 
@@ -57,8 +57,8 @@ export async function createConnections(params: {
   const results: Array<{ id: string; startId: string; endId: string }> = [];
 
   for (const conn of params.connections) {
-    const start = figma.getNodeById(conn.startNodeId) as SceneNode;
-    const end = figma.getNodeById(conn.endNodeId) as SceneNode;
+    const start = await figma.getNodeByIdAsync(conn.startNodeId) as SceneNode;
+    const end = await figma.getNodeByIdAsync(conn.endNodeId) as SceneNode;
     if (!start || !end) continue;
 
     const connector = figma.createConnector();

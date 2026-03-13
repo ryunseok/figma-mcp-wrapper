@@ -1,4 +1,5 @@
 // Variable binding handlers — Phase 3
+import { requireNode } from "./_utils";
 
 export async function bindVariable(params: {
   nodeId: string;
@@ -6,8 +7,7 @@ export async function bindVariable(params: {
   variableId: string;
   fillIndex?: number;
 }) {
-  const node = figma.getNodeById(params.nodeId) as SceneNode;
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  const node = await requireNode(params.nodeId);
 
   const variable = await figma.variables.getVariableByIdAsync(params.variableId);
   if (!variable) throw new Error(`Variable not found: ${params.variableId}`);
@@ -55,8 +55,7 @@ export async function unbindVariable(params: {
   nodeId: string;
   property: string;
 }) {
-  const node = figma.getNodeById(params.nodeId) as SceneNode;
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  const node = await requireNode(params.nodeId);
 
   if ("setBoundVariable" in node) {
     (node as SceneNode).setBoundVariable(params.property as VariableBindableNodeField, null);

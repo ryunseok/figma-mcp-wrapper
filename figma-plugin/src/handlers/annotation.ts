@@ -1,11 +1,12 @@
 // Annotation handlers
+import { requireNode } from "./_utils";
 
 export async function getAnnotations(params: { nodeId?: string }) {
   const node = params.nodeId
-    ? figma.getNodeById(params.nodeId)
+    ? await requireNode<BaseNode>(params.nodeId)
     : figma.currentPage.selection[0];
 
-  if (!node) throw new Error("No node found");
+  if (!node) throw new Error("No node selected");
 
   if ("annotations" in node) {
     return {
@@ -21,8 +22,7 @@ export async function getAnnotations(params: { nodeId?: string }) {
 export async function setAnnotation(params: {
   nodeId: string; labelMarkdown: string; categoryId?: string;
 }) {
-  const node = figma.getNodeById(params.nodeId) as SceneNode;
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  const node = await requireNode(params.nodeId);
 
   // Annotations API
   if ("annotations" in node) {
@@ -41,16 +41,26 @@ export async function setMultipleAnnotations(params: {
   nodeId: string;
   annotations: Array<{ labelMarkdown: string; categoryId?: string }>;
 }) {
-  const results: Array<{ success: boolean }> = [];
+  const node = await requireNode(params.nodeId);
+  if (!("annotations" in node)) {
+    return { nodeId: params.nodeId, count: 0 };
+  }
 
-  for (const ann of params.annotations) {
+  const ann = node as unknown as { annotations: unknown[] };
+  let count = 0;
+
+  for (const item of params.annotations) {
     try {
-      await setAnnotation({ nodeId: params.nodeId, ...ann });
-      results.push({ success: true });
+      const newAnnotation = {
+        label: item.labelMarkdown,
+        ...(item.categoryId ? { properties: { category: item.categoryId } } : {}),
+      };
+      ann.annotations = [...(ann.annotations || []), newAnnotation];
+      count++;
     } catch {
-      results.push({ success: false });
+      // skip failed annotation
     }
   }
 
-  return { nodeId: params.nodeId, count: results.filter((r) => r.success).length };
+  return { nodeId: params.nodeId, count };
 }

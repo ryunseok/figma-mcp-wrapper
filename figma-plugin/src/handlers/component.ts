@@ -1,4 +1,5 @@
 // Component & Instance handlers
+import { requireNode } from "./_utils";
 
 export async function getLocalComponents() {
   const components: Array<{ id: string; name: string; key: string; description: string }> = [];
@@ -20,9 +21,8 @@ export async function getLocalComponents() {
     }
   }
 
-  for (const page of figma.root.children) {
-    walk(page);
-  }
+  // dynamic-page 모드: 현재 페이지만 메모리에 로드됨
+  walk(figma.currentPage);
 
   return { count: components.length, components };
 }
@@ -49,7 +49,7 @@ export async function createComponentInstance(params: {
     const imported = await figma.importComponentByKeyAsync(params.componentKey);
     component = imported;
   } else if (params.componentId) {
-    const node = figma.getNodeById(params.componentId);
+    const node = await figma.getNodeByIdAsync(params.componentId);
     if (node?.type === "COMPONENT") component = node as ComponentNode;
   }
 
@@ -60,7 +60,7 @@ export async function createComponentInstance(params: {
   instance.y = params.y;
 
   if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId);
+    const parent = await figma.getNodeByIdAsync(params.parentId);
     if (parent && "appendChild" in parent) {
       (parent as FrameNode).appendChild(instance);
     }
@@ -73,7 +73,7 @@ export async function getInstanceOverrides(params: { nodeId?: string }) {
   let instance: InstanceNode | null = null;
 
   if (params.nodeId) {
-    const node = figma.getNodeById(params.nodeId);
+    const node = await figma.getNodeByIdAsync(params.nodeId);
     if (node?.type === "INSTANCE") instance = node as InstanceNode;
   } else {
     const sel = figma.currentPage.selection;
@@ -93,14 +93,14 @@ export async function getInstanceOverrides(params: { nodeId?: string }) {
 export async function setInstanceOverrides(params: {
   sourceInstanceId: string; targetNodeIds: string[];
 }) {
-  const source = figma.getNodeById(params.sourceInstanceId);
-  if (!source || source.type !== "INSTANCE") throw new Error("Source instance not found");
+  const source = await requireNode<BaseNode>(params.sourceInstanceId, "Source instance");
+  if (source.type !== "INSTANCE") throw new Error("Source instance not found");
 
   const sourceInstance = source as InstanceNode;
   const results: Array<{ id: string; success: boolean }> = [];
 
   for (const targetId of params.targetNodeIds) {
-    const target = figma.getNodeById(targetId);
+    const target = await figma.getNodeByIdAsync(targetId);
     if (target?.type === "INSTANCE") {
       // Copy overridden properties
       const targetInstance = target as InstanceNode;
@@ -122,8 +122,7 @@ export async function createComponent(params: {
 }) {
   if (params.fromNodeId) {
     // Convert existing node to component
-    const node = figma.getNodeById(params.fromNodeId) as SceneNode;
-    if (!node) throw new Error(`Node not found: ${params.fromNodeId}`);
+    const node = await requireNode(params.fromNodeId);
 
     const comp = figma.createComponent();
     comp.name = params.name;
@@ -177,7 +176,7 @@ export async function createComponent(params: {
   comp.resize(params.width ?? 100, params.height ?? 100);
 
   if (params.parentId) {
-    const parent = figma.getNodeById(params.parentId);
+    const parent = await figma.getNodeByIdAsync(params.parentId);
     if (parent && "appendChild" in parent) {
       (parent as FrameNode).appendChild(comp);
     }
@@ -189,9 +188,11 @@ export async function createComponent(params: {
 export async function createComponentSet(params: {
   componentIds: string[]; name?: string;
 }) {
-  const components = params.componentIds
-    .map((id) => figma.getNodeById(id))
-    .filter((n): n is ComponentNode => n !== null && n.type === "COMPONENT");
+  const components: ComponentNode[] = [];
+  for (const id of params.componentIds) {
+    const n = await figma.getNodeByIdAsync(id);
+    if (n !== null && n.type === "COMPONENT") components.push(n as ComponentNode);
+  }
 
   if (components.length < 2) throw new Error("Need at least 2 components to create a variant set");
 
@@ -217,8 +218,7 @@ export async function setComponentProperty(params: {
   defaultValue?: string;
   variantOptions?: string[];
 }) {
-  const node = figma.getNodeById(params.componentId);
-  if (!node) throw new Error(`Node not found: ${params.componentId}`);
+  const node = await requireNode<BaseNode>(params.componentId);
   if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") {
     throw new Error("Node must be a Component or ComponentSet");
   }

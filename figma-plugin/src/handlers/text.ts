@@ -1,10 +1,10 @@
 // Text handlers — Phase 1 (existing) + Phase 2 (text styling)
+import { requireNode, requireTextNode } from "./_utils";
 
 // --- Phase 1: Existing ---
 
 export async function scanTextNodes(params: { nodeId: string; useChunking?: boolean; chunkSize?: number }) {
-  const parent = figma.getNodeById(params.nodeId);
-  if (!parent) throw new Error(`Node not found: ${params.nodeId}`);
+  const parent = await requireNode<BaseNode>(params.nodeId);
 
   const textNodes: Array<{ id: string; name: string; characters: string }> = [];
 
@@ -25,8 +25,7 @@ export async function scanTextNodes(params: { nodeId: string; useChunking?: bool
 }
 
 export async function setTextContent(params: { nodeId: string; text: string }) {
-  const node = figma.getNodeById(params.nodeId) as TextNode;
-  if (!node || node.type !== "TEXT") throw new Error(`Text node not found: ${params.nodeId}`);
+  const node = await requireTextNode(params.nodeId);
 
   // Load all fonts used in the text node
   const fonts = node.getRangeAllFontNames(0, node.characters.length);
@@ -46,8 +45,7 @@ export async function setMultipleTextContents(params: {
 
   for (const item of params.text) {
     try {
-      const node = figma.getNodeById(item.nodeId) as TextNode;
-      if (!node || node.type !== "TEXT") throw new Error("Not a text node");
+      const node = await requireTextNode(item.nodeId);
 
       const fonts = node.getRangeAllFontNames(0, node.characters.length);
       for (const font of fonts) {
@@ -75,8 +73,7 @@ export async function setTextStyle(params: {
   textDecoration?: string; textCase?: string;
   color?: { r: number; g: number; b: number; a?: number };
 }) {
-  const node = figma.getNodeById(params.nodeId) as TextNode;
-  if (!node || node.type !== "TEXT") throw new Error(`Text node not found: ${params.nodeId}`);
+  const node = await requireTextNode(params.nodeId);
 
   const family = params.fontFamily ?? "Inter";
   const style = params.fontStyle ?? "Regular";
@@ -131,8 +128,7 @@ export async function setTextRangeStyle(params: {
   color?: { r: number; g: number; b: number; a?: number };
   textDecoration?: string;
 }) {
-  const node = figma.getNodeById(params.nodeId) as TextNode;
-  if (!node || node.type !== "TEXT") throw new Error(`Text node not found: ${params.nodeId}`);
+  const node = await requireTextNode(params.nodeId);
 
   const family = params.fontFamily ?? "Inter";
   const style = params.fontStyle ?? "Regular";

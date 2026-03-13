@@ -1,17 +1,12 @@
 // Style handlers — Phase 1 (existing) + Phase 2 (effects, gradient, etc.)
-
-function getNode(nodeId: string): SceneNode {
-  const node = figma.getNodeById(nodeId) as SceneNode;
-  if (!node) throw new Error(`Node not found: ${nodeId}`);
-  return node;
-}
+import { requireNode } from "./_utils";
 
 // --- Phase 1: Existing ---
 
 export async function setFillColor(params: {
   nodeId: string; r: number; g: number; b: number; a?: number;
 }) {
-  const node = getNode(params.nodeId) as GeometryMixin & SceneNode;
+  const node = await requireNode(params.nodeId) as GeometryMixin & SceneNode;
   node.fills = [{ type: "SOLID", color: { r: params.r, g: params.g, b: params.b }, opacity: params.a ?? 1 }];
   return { id: params.nodeId, fills: node.fills };
 }
@@ -19,7 +14,7 @@ export async function setFillColor(params: {
 export async function setStrokeColor(params: {
   nodeId: string; r: number; g: number; b: number; a?: number; weight?: number;
 }) {
-  const node = getNode(params.nodeId) as GeometryMixin & SceneNode;
+  const node = await requireNode(params.nodeId) as GeometryMixin & SceneNode;
   node.strokes = [{ type: "SOLID", color: { r: params.r, g: params.g, b: params.b }, opacity: params.a ?? 1 }];
   if (params.weight !== undefined) node.strokeWeight = params.weight;
   return { id: params.nodeId, strokes: node.strokes };
@@ -29,7 +24,7 @@ export async function setCornerRadius(params: {
   nodeId: string; radius: number;
   corners?: { topLeft?: number; topRight?: number; bottomRight?: number; bottomLeft?: number };
 }) {
-  const node = getNode(params.nodeId) as RectangleNode;
+  const node = await requireNode(params.nodeId) as RectangleNode;
   if (params.corners) {
     node.topLeftRadius = params.corners.topLeft ?? params.radius;
     node.topRightRadius = params.corners.topRight ?? params.radius;
@@ -53,7 +48,7 @@ export async function setEffect(params: {
   }>;
   append?: boolean;
 }) {
-  const node = getNode(params.nodeId) as SceneNode & BlendMixin;
+  const node = await requireNode(params.nodeId) as SceneNode & BlendMixin;
 
   const newEffects: Effect[] = params.effects.map((e) => {
     if (e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW") {
@@ -88,7 +83,7 @@ export async function setGradient(params: {
     endPoint?: { x: number; y: number };
   };
 }) {
-  const node = getNode(params.nodeId) as GeometryMixin & SceneNode;
+  const node = await requireNode(params.nodeId) as GeometryMixin & SceneNode;
   const { gradient } = params;
 
   const gradientStops: ColorStop[] = gradient.stops.map((s) => ({
@@ -116,7 +111,7 @@ export async function setImageFill(params: {
   nodeId: string; imageUrl: string;
   scaleMode?: "FILL" | "FIT" | "CROP" | "TILE";
 }) {
-  const node = getNode(params.nodeId) as GeometryMixin & SceneNode;
+  const node = await requireNode(params.nodeId) as GeometryMixin & SceneNode;
 
   const response = await fetch(params.imageUrl);
   const buffer = await response.arrayBuffer();
@@ -132,13 +127,13 @@ export async function setImageFill(params: {
 }
 
 export async function setBlendMode(params: { nodeId: string; blendMode: string }) {
-  const node = getNode(params.nodeId) as SceneNode & BlendMixin;
+  const node = await requireNode(params.nodeId) as SceneNode & BlendMixin;
   node.blendMode = params.blendMode as BlendMode;
   return { id: params.nodeId, blendMode: node.blendMode };
 }
 
 export async function setOpacity(params: { nodeId: string; opacity: number }) {
-  const node = getNode(params.nodeId) as SceneNode & BlendMixin;
+  const node = await requireNode(params.nodeId) as SceneNode & BlendMixin;
   node.opacity = params.opacity;
   return { id: params.nodeId, opacity: node.opacity };
 }
@@ -149,7 +144,7 @@ export async function setStrokeDetail(params: {
   strokeCap?: string; strokeJoin?: string;
   dashPattern?: number[];
 }) {
-  const node = getNode(params.nodeId) as GeometryMixin & IndividualStrokesMixin & SceneNode;
+  const node = await requireNode(params.nodeId) as GeometryMixin & IndividualStrokesMixin & SceneNode;
 
   if (params.strokeWeight !== undefined) node.strokeWeight = params.strokeWeight;
   if (params.strokeAlign) node.strokeAlign = params.strokeAlign as "INSIDE" | "OUTSIDE" | "CENTER";

@@ -1,13 +1,5 @@
 // Node CRUD handlers — Phase 1 (existing) + Phase 2 (new shapes)
-
-function getParent(parentId?: string): FrameNode | PageNode | SectionNode {
-  if (parentId) {
-    const parent = figma.getNodeById(parentId);
-    if (!parent) throw new Error(`Parent not found: ${parentId}`);
-    return parent as FrameNode;
-  }
-  return figma.currentPage;
-}
+import { requireNode, requireParent, resolveSceneNodes } from "./_utils";
 
 // --- Phase 1: Existing ---
 
@@ -20,7 +12,7 @@ export async function createRectangle(params: {
   rect.y = params.y;
   rect.resize(params.width, params.height);
   rect.name = params.name ?? "Rectangle";
-  getParent(params.parentId).appendChild(rect);
+  (await requireParent(params.parentId)).appendChild(rect);
   return { id: rect.id, name: rect.name, x: rect.x, y: rect.y, width: rect.width, height: rect.height, parentId: rect.parent?.id };
 }
 
@@ -40,7 +32,7 @@ export async function createFrame(params: {
   frame.y = params.y;
   frame.resize(params.width, params.height);
   frame.name = params.name ?? "Frame";
-  getParent(params.parentId).appendChild(frame);
+  (await requireParent(params.parentId)).appendChild(frame);
 
   if (params.fillColor) {
     const { r, g, b, a } = params.fillColor;
@@ -112,29 +104,26 @@ export async function createText(params: {
     const { r, g, b, a } = params.fontColor;
     textNode.fills = [{ type: "SOLID", color: { r, g, b }, opacity: a ?? 1 }];
   }
-  getParent(params.parentId).appendChild(textNode);
+  (await requireParent(params.parentId)).appendChild(textNode);
 
   return { id: textNode.id, name: textNode.name, x: textNode.x, y: textNode.y, characters: textNode.characters };
 }
 
 export async function moveNode(params: { nodeId: string; x: number; y: number }) {
-  const node = figma.getNodeById(params.nodeId) as SceneNode;
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  const node = await requireNode(params.nodeId);
   node.x = params.x;
   node.y = params.y;
   return { id: node.id, name: node.name, x: node.x, y: node.y };
 }
 
 export async function resizeNode(params: { nodeId: string; width: number; height: number }) {
-  const node = figma.getNodeById(params.nodeId) as SceneNode;
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  const node = await requireNode(params.nodeId);
   node.resize(params.width, params.height);
   return { id: node.id, name: node.name, width: node.width, height: node.height };
 }
 
 export async function cloneNode(params: { nodeId: string; x?: number; y?: number }) {
-  const node = figma.getNodeById(params.nodeId) as SceneNode;
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  const node = await requireNode(params.nodeId);
   const clone = node.clone();
   if (params.x !== undefined) clone.x = params.x;
   if (params.y !== undefined) clone.y = params.y;
@@ -142,8 +131,7 @@ export async function cloneNode(params: { nodeId: string; x?: number; y?: number
 }
 
 export async function deleteNode(params: { nodeId: string }) {
-  const node = figma.getNodeById(params.nodeId) as SceneNode;
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  const node = await requireNode(params.nodeId);
   const info = { id: node.id, name: node.name, type: node.type };
   node.remove();
   return info;
@@ -152,7 +140,7 @@ export async function deleteNode(params: { nodeId: string }) {
 export async function deleteMultipleNodes(params: { nodeIds: string[] }) {
   const deleted: Array<{ id: string; name: string }> = [];
   for (const id of params.nodeIds) {
-    const node = figma.getNodeById(id) as SceneNode;
+    const node = await figma.getNodeByIdAsync(id) as SceneNode;
     if (node) {
       deleted.push({ id: node.id, name: node.name });
       node.remove();
@@ -183,7 +171,7 @@ export async function createEllipse(params: {
     };
   }
 
-  getParent(params.parentId).appendChild(ellipse);
+  (await requireParent(params.parentId)).appendChild(ellipse);
   return { id: ellipse.id, name: ellipse.name, x: ellipse.x, y: ellipse.y, width: ellipse.width, height: ellipse.height };
 }
 
@@ -211,7 +199,7 @@ export async function createLine(params: {
     line.strokes = [{ type: "SOLID", color: { r, g, b }, opacity: a ?? 1 }];
   }
 
-  getParent(params.parentId).appendChild(line);
+  (await requireParent(params.parentId)).appendChild(line);
   return { id: line.id, name: line.name };
 }
 
@@ -225,7 +213,7 @@ export async function createPolygon(params: {
   polygon.resize(params.width, params.height);
   polygon.pointCount = params.pointCount ?? 3;
   polygon.name = params.name ?? "Polygon";
-  getParent(params.parentId).appendChild(polygon);
+  (await requireParent(params.parentId)).appendChild(polygon);
   return { id: polygon.id, name: polygon.name, pointCount: polygon.pointCount };
 }
 
@@ -241,7 +229,7 @@ export async function createStar(params: {
   star.pointCount = params.pointCount ?? 5;
   star.innerRadius = params.innerRadius ?? 0.382;
   star.name = params.name ?? "Star";
-  getParent(params.parentId).appendChild(star);
+  (await requireParent(params.parentId)).appendChild(star);
   return { id: star.id, name: star.name, pointCount: star.pointCount, innerRadius: star.innerRadius };
 }
 
@@ -258,15 +246,12 @@ export async function createVector(params: {
     windingRule: (p.windingRule as "EVENODD" | "NONZERO") ?? "NONZERO",
   }));
   vector.name = params.name ?? "Vector";
-  getParent(params.parentId).appendChild(vector);
+  (await requireParent(params.parentId)).appendChild(vector);
   return { id: vector.id, name: vector.name };
 }
 
 export async function createGroup(params: { nodeIds: string[]; name?: string }) {
-  const nodes = params.nodeIds
-    .map((id) => figma.getNodeById(id))
-    .filter((n): n is SceneNode => n !== null && "x" in n);
-
+  const nodes = await resolveSceneNodes(params.nodeIds);
   if (nodes.length === 0) throw new Error("No valid nodes to group");
 
   const group = figma.group(nodes, nodes[0].parent!);
@@ -293,10 +278,9 @@ export async function createSection(params: {
 }
 
 export async function reorderChild(params: { parentId: string; nodeId: string; index: number }) {
-  const parent = figma.getNodeById(params.parentId);
-  if (!parent || !("insertChild" in parent)) throw new Error("Parent not found or not a container: " + params.parentId);
-  const node = figma.getNodeById(params.nodeId) as SceneNode;
-  if (!node) throw new Error("Node not found: " + params.nodeId);
+  const parent = await requireNode<FrameNode>(params.parentId, "Parent");
+  if (!("insertChild" in parent)) throw new Error("Not a container: " + params.parentId);
+  const node = await requireNode(params.nodeId);
   (parent as FrameNode).insertChild(params.index, node);
   return { id: node.id, name: node.name, index: params.index };
 }
@@ -308,10 +292,7 @@ export async function booleanOperation(params: {
   operation: "UNION" | "SUBTRACT" | "INTERSECT" | "EXCLUDE";
   name?: string;
 }) {
-  const nodes = params.nodeIds
-    .map((id) => figma.getNodeById(id))
-    .filter((n): n is SceneNode => n !== null && "x" in n);
-
+  const nodes = await resolveSceneNodes(params.nodeIds);
   if (nodes.length < 2) throw new Error("Need at least 2 nodes for boolean operation");
 
   const parent = nodes[0].parent;

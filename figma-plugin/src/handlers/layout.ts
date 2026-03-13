@@ -1,17 +1,12 @@
 // Layout handlers — Phase 1 (existing) + Phase 2 (constraints, grid)
-
-function getFrame(nodeId: string): FrameNode {
-  const node = figma.getNodeById(nodeId) as FrameNode;
-  if (!node) throw new Error(`Node not found: ${nodeId}`);
-  return node;
-}
+import { requireNode } from "./_utils";
 
 // --- Phase 1: Existing ---
 
 export async function setLayoutMode(params: {
   nodeId: string; layoutMode: string; layoutWrap?: string;
 }) {
-  const frame = getFrame(params.nodeId);
+  const frame = await requireNode<FrameNode>(params.nodeId);
   frame.layoutMode = params.layoutMode as "NONE" | "HORIZONTAL" | "VERTICAL";
   if (params.layoutWrap) {
     frame.layoutWrap = params.layoutWrap as "NO_WRAP" | "WRAP";
@@ -24,7 +19,7 @@ export async function setPadding(params: {
   paddingTop?: number; paddingRight?: number;
   paddingBottom?: number; paddingLeft?: number;
 }) {
-  const frame = getFrame(params.nodeId);
+  const frame = await requireNode<FrameNode>(params.nodeId);
   if (params.paddingTop !== undefined) frame.paddingTop = params.paddingTop;
   if (params.paddingRight !== undefined) frame.paddingRight = params.paddingRight;
   if (params.paddingBottom !== undefined) frame.paddingBottom = params.paddingBottom;
@@ -36,7 +31,7 @@ export async function setAxisAlign(params: {
   nodeId: string;
   primaryAxisAlignItems?: string; counterAxisAlignItems?: string;
 }) {
-  const frame = getFrame(params.nodeId);
+  const frame = await requireNode<FrameNode>(params.nodeId);
   if (params.primaryAxisAlignItems) {
     frame.primaryAxisAlignItems = params.primaryAxisAlignItems as "MIN" | "CENTER" | "MAX" | "SPACE_BETWEEN";
   }
@@ -50,7 +45,7 @@ export async function setLayoutSizing(params: {
   nodeId: string;
   layoutSizingHorizontal?: string; layoutSizingVertical?: string;
 }) {
-  const frame = getFrame(params.nodeId);
+  const frame = await requireNode<FrameNode>(params.nodeId);
   if (params.layoutSizingHorizontal) {
     frame.layoutSizingHorizontal = params.layoutSizingHorizontal as "FIXED" | "HUG" | "FILL";
   }
@@ -63,7 +58,7 @@ export async function setLayoutSizing(params: {
 export async function setItemSpacing(params: {
   nodeId: string; itemSpacing?: number; counterAxisSpacing?: number;
 }) {
-  const frame = getFrame(params.nodeId);
+  const frame = await requireNode<FrameNode>(params.nodeId);
   if (params.itemSpacing !== undefined) frame.itemSpacing = params.itemSpacing;
   if (params.counterAxisSpacing !== undefined) frame.counterAxisSpacing = params.counterAxisSpacing;
   return { id: frame.id, itemSpacing: frame.itemSpacing };
@@ -74,8 +69,7 @@ export async function setItemSpacing(params: {
 export async function setConstraints(params: {
   nodeId: string; horizontal?: string; vertical?: string;
 }) {
-  const node = figma.getNodeById(params.nodeId) as SceneNode & ConstraintMixin;
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  const node = await requireNode<SceneNode & ConstraintMixin>(params.nodeId);
 
   node.constraints = {
     horizontal: (params.horizontal ?? node.constraints.horizontal) as ConstraintType,
@@ -94,7 +88,7 @@ export async function setGrid(params: {
     color?: { r: number; g: number; b: number; a: number };
   }>;
 }) {
-  const frame = getFrame(params.nodeId);
+  const frame = await requireNode<FrameNode>(params.nodeId);
 
   frame.layoutGrids = params.grids.map((g) => {
     if (g.pattern === "GRID") {
