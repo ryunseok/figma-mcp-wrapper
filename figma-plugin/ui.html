@@ -15,6 +15,12 @@
     .dot.disconnected { background: #f24822; }
     .dot.connecting { background: #ffb020; }
     .channel-display { background: #1e1e1e; border: 1px solid #444; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 16px; text-align: center; letter-spacing: 2px; color: #0d99ff; margin: 8px 0; user-select: all; }
+    .btn-group { display: flex; gap: 8px; margin: 8px 0; }
+    .btn { flex: 1; padding: 8px; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-connect { background: #1bc47d; color: #fff; }
+    .btn-disconnect { background: #f24822; color: #fff; }
     .log { background: #1e1e1e; border: 1px solid #333; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 10px; max-height: 120px; overflow-y: auto; margin-top: 8px; color: #888; }
     .log .cmd { color: #0d99ff; }
     .log .err { color: #f24822; }
@@ -33,18 +39,25 @@
     <input id="port" type="text" value="3055" />
   </div>
 
+  <div class="btn-group">
+    <button id="btnConnect" class="btn btn-connect">Connect</button>
+    <button id="btnDisconnect" class="btn btn-disconnect" disabled>Disconnect</button>
+  </div>
+
   <div class="status">
     <div id="statusDot" class="dot disconnected"></div>
     <span id="statusText">Disconnected</span>
   </div>
 
-  <div class="channel-display" id="channelName">—</div>
+  <div class="channel-display" id="channelName">&mdash;</div>
 
   <div class="log" id="log"></div>
 
   <script>
     const serverInput = document.getElementById("server");
     const portInput = document.getElementById("port");
+    const btnConnect = document.getElementById("btnConnect");
+    const btnDisconnect = document.getElementById("btnDisconnect");
     const statusDot = document.getElementById("statusDot");
     const statusText = document.getElementById("statusText");
     const channelEl = document.getElementById("channelName");
@@ -52,7 +65,7 @@
 
     let ws = null;
     let channel = null;
-    let reconnectTimer = null;
+    let intentionalClose = false;
 
     function log(msg, cls = "") {
       const line = document.createElement("div");
@@ -71,6 +84,13 @@
       statusText.textContent = text;
     }
 
+    function updateButtons(connected) {
+      btnConnect.disabled = connected;
+      btnDisconnect.disabled = !connected;
+      serverInput.disabled = connected;
+      portInput.disabled = connected;
+    }
+
     function connect() {
       if (ws && ws.readyState === WebSocket.OPEN) return;
 
@@ -79,17 +99,22 @@
       const protocol = server === "localhost" || server === "127.0.0.1" ? "ws" : "wss";
       const url = `${protocol}://${server}:${port}`;
 
+      intentionalClose = false;
       setStatus("connecting", "Connecting...");
+      updateButtons(false);
       log(`Connecting to ${url}...`);
 
       ws = new WebSocket(url);
 
       ws.onopen = () => {
         setStatus("connected", "Connected");
+        updateButtons(true);
         log("Connected to relay", "ok");
 
-        // Auto join channel
-        channel = generateChannel();
+        // Generate channel only once, reuse on reconnect
+        if (!channel) {
+          channel = generateChannel();
+        }
         channelEl.textContent = channel;
 
         ws.send(JSON.stringify({
@@ -103,6 +128,12 @@
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+
+          // Application-level heartbeat: respond with pong
+          if (data.type === "ping") {
+            ws.send(JSON.stringify({ type: "pong", ts: data.ts }));
+            return;
+          }
 
           // System messages (join confirmations etc)
           if (data.type === "system") return;
@@ -122,22 +153,27 @@
 
       ws.onclose = () => {
         setStatus("disconnected", "Disconnected");
-        log("Disconnected");
+        updateButtons(false);
         ws = null;
-        scheduleReconnect();
+
+        if (!intentionalClose) {
+          log("Connection lost unexpectedly", "err");
+        } else {
+          log("Disconnected");
+        }
       };
 
-      ws.onerror = (err) => {
+      ws.onerror = () => {
         log("Connection error", "err");
       };
     }
 
-    function scheduleReconnect() {
-      if (reconnectTimer) return;
-      reconnectTimer = setTimeout(() => {
-        reconnectTimer = null;
-        connect();
-      }, 3000);
+    function disconnect() {
+      if (!ws) return;
+      intentionalClose = true;
+      ws.close();
+      // Keep channel — reuse on next connect
+      log(`Channel ${channel} preserved for reconnect`);
     }
 
     // Receive results from plugin code → send back to MCP via WebSocket
@@ -168,12 +204,9 @@
       }
     };
 
-    // Auto connect on load
-    connect();
-
-    // Reconnect on input change
-    serverInput.addEventListener("change", () => { if (ws) ws.close(); connect(); });
-    portInput.addEventListener("change", () => { if (ws) ws.close(); connect(); });
+    // Manual connect/disconnect buttons
+    btnConnect.addEventListener("click", connect);
+    btnDisconnect.addEventListener("click", disconnect);
   </script>
 </body>
 </html>

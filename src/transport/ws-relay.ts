@@ -15,7 +15,7 @@ export class WsRelay {
   private channels = new Map<string, Set<WebSocket>>();
   private internalHandlers = new Map<string, InternalHandler>();
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private alive = new WeakMap<WebSocket, boolean>();
+  private lastPong = new WeakMap<WebSocket, number>();
 
   constructor(
     private port: number,
@@ -27,8 +27,7 @@ export class WsRelay {
 
     this.wss.on("connection", (ws) => {
       logger.info("Figma plugin connected");
-      this.alive.set(ws, true);
-      ws.on("pong", () => this.alive.set(ws, true));
+      this.lastPong.set(ws, Date.now());
 
       ws.send(JSON.stringify({ type: "system", message: "Please join a channel to start" }));
 
@@ -69,34 +68,56 @@ export class WsRelay {
     logger.info("WebSocket relay stopped");
   }
 
+  /**
+   * Application-level heartbeat.
+   * Sends a JSON ping message instead of WebSocket ping frame,
+   * because Figma plugin iframe sandbox may not handle WS ping/pong.
+   */
   private startHeartbeat(): void {
     this.heartbeatTimer = setInterval(() => {
       if (!this.wss) return;
+      const now = Date.now();
+      const deadThreshold = this.heartbeatMs * 3; // 3 cycles without response
+
+      const pingPayload = JSON.stringify({ type: "ping", ts: now });
+
       for (const ws of this.wss.clients) {
-        if (!this.alive.get(ws)) {
-          logger.warn("Heartbeat failed — terminating dead connection");
+        const last = this.lastPong.get(ws) ?? 0;
+        if (now - last > deadThreshold) {
+          logger.warn("App heartbeat failed — terminating dead connection");
           this.removeFromAllChannels(ws);
           ws.terminate();
           continue;
         }
-        this.alive.set(ws, false);
-        ws.ping();
+
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(pingPayload);
+        }
       }
     }, this.heartbeatMs);
   }
 
   private removeFromAllChannels(ws: WebSocket): void {
-    this.channels.forEach((clients, ch) => {
+    for (const [ch, clients] of this.channels) {
       if (clients.delete(ws)) {
         logger.debug(`Plugin removed from channel: ${ch}`);
+        if (clients.size === 0) {
+          this.channels.delete(ch);
+        }
       }
-    });
+    }
   }
 
   /** Register an internal handler for a channel (used by PluginBridge) */
   registerHandler(channel: string, handler: InternalHandler): void {
     this.internalHandlers.set(channel, handler);
     logger.debug(`Internal handler registered for channel: ${channel}`);
+  }
+
+  /** Unregister an internal handler (called by PluginBridge.dispose) */
+  unregisterHandler(channel: string): void {
+    this.internalHandlers.delete(channel);
+    logger.debug(`Internal handler unregistered for channel: ${channel}`);
   }
 
   /** Send a message from internal handler to all external clients in a channel */
@@ -134,6 +155,12 @@ export class WsRelay {
   private handleExternal(ws: WebSocket, raw: string): void {
     try {
       const data = JSON.parse(raw);
+
+      // Application-level pong response
+      if (data.type === "pong") {
+        this.lastPong.set(ws, Date.now());
+        return;
+      }
 
       if (data.type === "join") {
         this.handleJoin(ws, data);

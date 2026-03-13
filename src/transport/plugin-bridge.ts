@@ -20,7 +20,21 @@ export class PluginBridge {
   ) {}
 
   get isConnected(): boolean {
-    return true; // relay is always available (embedded)
+    return this.currentChannel !== null && this.relay.hasClients(this.currentChannel);
+  }
+
+  /** Clean up pending requests and unregister from relay */
+  dispose(): void {
+    for (const [id, req] of this.pendingRequests) {
+      clearTimeout(req.timeout);
+      req.reject(new PluginDisconnectedError());
+    }
+    this.pendingRequests.clear();
+
+    if (this.currentChannel) {
+      this.relay.unregisterHandler(this.currentChannel);
+      this.currentChannel = null;
+    }
   }
 
   async joinChannel(channel: string): Promise<unknown> {

@@ -52,10 +52,10 @@ async function startStdio(ctx: ToolContext) {
 }
 
 /** HTTP mode: persistent daemon, multiple sessions */
-async function startHttp(ctx: ToolContext, config: Config) {
+async function startHttp(relay: WsRelay, restClient: RestClient, config: Config) {
   const sessions = new Map<
     string,
-    { transport: StreamableHTTPServerTransport; server: McpServer }
+    { transport: StreamableHTTPServerTransport; server: McpServer; pluginBridge: PluginBridge }
   >();
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
@@ -95,34 +95,42 @@ async function startHttp(ctx: ToolContext, config: Config) {
 
     if (sessionId && sessions.has(sessionId)) {
       const session = sessions.get(sessionId)!;
+
+      // DELETE: clean up session after transport handles the request
+      if (req.method === "DELETE") {
+        await session.transport.handleRequest(req, res);
+        session.pluginBridge.dispose();
+        sessions.delete(sessionId);
+        logger.info(`Session deleted: ${sessionId.slice(0, 8)}...`);
+        return;
+      }
+
       await session.transport.handleRequest(req, res);
       return;
     }
 
-    // Handle DELETE for session cleanup
+    // DELETE for unknown session
     if (req.method === "DELETE") {
-      if (sessionId && sessions.has(sessionId)) {
-        const session = sessions.get(sessionId)!;
-        await session.transport.handleRequest(req, res);
-        sessions.delete(sessionId);
-      } else {
-        res.writeHead(404);
-        res.end();
-      }
+      res.writeHead(404);
+      res.end();
       return;
     }
 
-    // New session (POST with initialize)
+    // New session — each gets its own PluginBridge for channel isolation
+    const sessionPluginBridge = new PluginBridge(relay, config.requestTimeoutMs);
+    const sessionCtx: ToolContext = { pluginBridge: sessionPluginBridge, restClient };
+
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
     });
 
-    const server = createMcpServer(ctx);
+    const server = createMcpServer(sessionCtx);
     await server.connect(transport);
 
     transport.onclose = () => {
       const sid = transport.sessionId;
-      if (sid) {
+      if (sid && sessions.has(sid)) {
+        sessions.get(sid)!.pluginBridge.dispose();
         sessions.delete(sid);
         logger.info(`Session closed: ${sid.slice(0, 8)}...`);
       }
@@ -132,7 +140,7 @@ async function startHttp(ctx: ToolContext, config: Config) {
 
     const sid = transport.sessionId;
     if (sid) {
-      sessions.set(sid, { transport, server });
+      sessions.set(sid, { transport, server, pluginBridge: sessionPluginBridge });
       logger.info(`New session: ${sid.slice(0, 8)}... (total: ${sessions.size})`);
     }
   });
@@ -166,14 +174,15 @@ async function main() {
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
 
-  // Shared context (all sessions use the same plugin bridge + REST client)
-  const pluginBridge = new PluginBridge(relay, config.requestTimeoutMs);
   const restClient = new RestClient(config.figmaToken);
-  const ctx: ToolContext = { pluginBridge, restClient };
 
   if (config.mode === "http") {
-    await startHttp(ctx, config);
+    // HTTP mode: each session gets its own PluginBridge for channel isolation
+    await startHttp(relay, restClient, config);
   } else {
+    // stdio mode: single session, single PluginBridge
+    const pluginBridge = new PluginBridge(relay, config.requestTimeoutMs);
+    const ctx: ToolContext = { pluginBridge, restClient };
     await startStdio(ctx);
   }
 
