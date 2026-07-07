@@ -5,21 +5,22 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { z } from "zod";
 import { type Config, loadConfig } from "./config.js";
-import { allTools } from "./tools/_registry.js";
+import { allTools, readOnlyTools } from "./tools/_registry.js";
+import type { ToolDefinition } from "./tools/types.js";
 import type { ToolContext } from "./tools/types.js";
 import { PluginBridge } from "./transport/plugin-bridge.js";
 import { RestClient } from "./transport/rest-client.js";
 import { WsRelay } from "./transport/ws-relay.js";
 import { logger } from "./utils/logger.js";
 
-/** Create and configure a new McpServer with all tools registered */
-function createMcpServer(ctx: ToolContext): McpServer {
+/** Create and configure a new McpServer with the given tool set registered */
+function createMcpServer(ctx: ToolContext, tools: ToolDefinition[]): McpServer {
   const server = new McpServer({
     name: "figma-mcp-wrapper",
     version: "0.2.0",
   });
 
-  for (const tool of allTools) {
+  for (const tool of tools) {
     const zodSchema: Record<string, z.ZodType> = {};
     for (const [key, value] of Object.entries(tool.schema)) {
       zodSchema[key] = value as z.ZodType;
@@ -44,8 +45,8 @@ function createMcpServer(ctx: ToolContext): McpServer {
 }
 
 /** stdio mode: single session, Claude spawns the process */
-async function startStdio(ctx: ToolContext) {
-  const server = createMcpServer(ctx);
+async function startStdio(ctx: ToolContext, tools: ToolDefinition[]) {
+  const server = createMcpServer(ctx, tools);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   logger.info("MCP server running on stdio");
@@ -53,6 +54,7 @@ async function startStdio(ctx: ToolContext) {
 
 /** HTTP mode: persistent daemon, multiple sessions */
 async function startHttp(relay: WsRelay, restClient: RestClient, config: Config) {
+  const tools = config.readOnly ? readOnlyTools : allTools;
   const sessions = new Map<
     string,
     { transport: StreamableHTTPServerTransport; server: McpServer; pluginBridge: PluginBridge }
@@ -79,7 +81,7 @@ async function startHttp(relay: WsRelay, restClient: RestClient, config: Config)
           JSON.stringify({
             status: "ok",
             sessions: sessions.size,
-            tools: allTools.length,
+            tools: tools.length,
             wsPort: config.wsPort,
           }),
         );
@@ -124,7 +126,7 @@ async function startHttp(relay: WsRelay, restClient: RestClient, config: Config)
       sessionIdGenerator: () => randomUUID(),
     });
 
-    const server = createMcpServer(sessionCtx);
+    const server = createMcpServer(sessionCtx, tools);
     await server.connect(transport);
 
     transport.onclose = () => {
@@ -183,10 +185,12 @@ async function main() {
     // stdio mode: single session, single PluginBridge
     const pluginBridge = new PluginBridge(relay, config.requestTimeoutMs);
     const ctx: ToolContext = { pluginBridge, restClient };
-    await startStdio(ctx);
+    await startStdio(ctx, config.readOnly ? readOnlyTools : allTools);
   }
 
-  logger.info(`Registered ${allTools.length} tools`);
+  logger.info(
+    `Registered ${config.readOnly ? readOnlyTools.length : allTools.length} tools${config.readOnly ? " (READ_ONLY — REST 조회 전용)" : ""}`,
+  );
 }
 
 main().catch((err) => {

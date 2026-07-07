@@ -4,6 +4,8 @@ export interface Config {
   httpPort: number;
   figmaToken: string | null;
   requestTimeoutMs: number;
+  /** READ_ONLY=1 — REST 조회 도구만 등록 (원격 배포용, 플러그인 의존·쓰기 도구 미노출) */
+  readOnly: boolean;
 }
 
 export function loadConfig(): Config {
@@ -17,5 +19,6 @@ export function loadConfig(): Config {
     httpPort: Number(getArg("--http-port=") ?? process.env.MCP_HTTP_PORT ?? 3056),
     figmaToken: process.env.FIGMA_ACCESS_TOKEN ?? null,
     requestTimeoutMs: Number(process.env.REQUEST_TIMEOUT_MS ?? 30000),
+    readOnly: (getArg("--read-only=") ?? process.env.READ_ONLY) === "1",
   };
 }

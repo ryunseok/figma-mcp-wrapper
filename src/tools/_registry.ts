@@ -108,7 +108,7 @@ import {
 } from "./text/index.js";
 import type { ToolDefinition } from "./types.js";
 // Variable (Phase 3 — Plugin)
-import { bindVariableTool, unbindVariableTool } from "./variable/index.js";
+import { getLocalVariablesTool, bindVariableTool, unbindVariableTool } from "./variable/index.js";
 
 /** All registered tools */
 export const allTools: ToolDefinition[] = [
@@ -204,7 +204,8 @@ export const allTools: ToolDefinition[] = [
   setDefaultConnectorTool,
   createConnectionsTool,
 
-  // Variable — Phase 3 Plugin (2)
+  // Variable — Phase 3 Plugin (3)
+  getLocalVariablesTool,
   bindVariableTool,
   unbindVariableTool,
 
@@ -222,4 +223,19 @@ export const allTools: ToolDefinition[] = [
   getVariablesTool,
   getPublishedVariablesTool,
   setVariablesTool,
+];
+
+/**
+ * 읽기 전용 도구 세트 (READ_ONLY=1, LRD-4670) — 원격 배포 인스턴스용.
+ *
+ * REST 조회 5종만. 플러그인(WS 채널) 의존 도구는 조회 계열(get_node_info, scan_* 등)이라도
+ * 원격에 Figma Desktop 플러그인이 없어 동작 불가이므로 제외한다 — 광고되지만 작동하지 않는
+ * 도구를 남기지 않는다. Variables REST(get_variables 등)는 Enterprise 플랜 전용이라 제외.
+ */
+export const readOnlyTools: ToolDefinition[] = [
+  getFileTool,
+  getFileNodesTool,
+  getFileComponentsTool,
+  getFileStylesTool,
+  getImagesTool,
 ];
